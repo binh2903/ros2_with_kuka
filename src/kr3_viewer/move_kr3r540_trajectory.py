@@ -13,7 +13,7 @@ class TrajectoryPublisher(Node):
         self.timer = self.create_timer(timer_period, self.timer_callback)
         self.start_time = time.time()
         # Joint names for KR3 R540
-        self.joint_names = ['joint_a1', 'joint_a2', 'joint_a3', 'joint_a4', 'joint_a5', 'joint_a6']
+        self.joint_names = ['joint_1', 'joint_2', 'joint_3', 'joint_4', 'joint_5', 'joint_6']
         self.get_logger().info('KR3 R540 Trajectory Publisher started. Publishing smooth joint trajectories...')
 
     def timer_callback(self):
@@ -24,12 +24,12 @@ class TrajectoryPublisher(Node):
         
         # Calculate smooth sine trajectories for each joint of KR3 R540
         msg.position = [
-            1.0 * math.sin(0.5 * t),          # joint_a1
-            0.5 * math.sin(0.3 * t),          # joint_a2
-            0.8 * math.sin(0.4 * t),          # joint_a3
-            1.2 * math.sin(0.6 * t),          # joint_a4
-            1.0 * math.sin(0.2 * t),          # joint_a5
-            1.5 * math.sin(0.8 * t)           # joint_a6
+            1.0 * math.sin(0.5 * t),          # joint_1
+            0.5 * math.sin(0.3 * t),          # joint_2
+            0.8 * math.sin(0.4 * t),          # joint_3
+            1.2 * math.sin(0.6 * t),          # joint_4
+            1.0 * math.sin(0.2 * t),          # joint_5
+            1.5 * math.sin(0.8 * t)           # joint_6 
         ]
         
         self.publisher_.publish(msg)
