@@ -1,0 +1,2103 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KUKA KR3 R540 - Trajectory Controller</title>
+    <!-- Google Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap"
+        rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Three.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/urdf-loader@0.12.7/umd/URDFLoader.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --panel-bg: rgba(17, 24, 39, 0.7);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-color: #f3f4f6;
+            --text-muted: #9ca3af;
+            --accent-orange: #ff5e00;
+            --accent-blue: #00d2ff;
+            --accent-green: #10b981;
+            --shadow-primary: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header Styling */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 30px;
+            background: rgba(15, 23, 42, 0.9);
+            border-bottom: 1px solid var(--border-color);
+            backdrop-filter: blur(10px);
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            letter-spacing: 1px;
+        }
+
+        .logo span {
+            color: var(--accent-orange);
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--accent-green);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .status-pulse {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-green);
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(0.9);
+                opacity: 0.6;
+            }
+
+            50% {
+                transform: scale(1.2);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(0.9);
+                opacity: 0.6;
+            }
+        }
+
+        /* Layout Grid */
+        .workspace {
+            display: grid;
+            grid-template-columns: 360px 1fr 1fr;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Sidebar Controls Panel */
+        .panel {
+            background: var(--panel-bg);
+            border-right: 1px solid var(--border-color);
+            backdrop-filter: blur(16px);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            overflow-y: auto;
+            z-index: 10;
+        }
+
+        h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--accent-orange);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+        }
+
+        label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        label span.val {
+            color: var(--accent-blue);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--accent-orange);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        .select-wrapper {
+            position: relative;
+        }
+
+        select {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 10px;
+            border-radius: 8px;
+            appearance: none;
+            font-family: inherit;
+            cursor: pointer;
+        }
+
+        .select-wrapper::after {
+            content: '\f107';
+            font-family: 'FontAwesome';
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            pointer-events: none;
+        }
+
+        /* 2D Canvas Panel */
+        .canvas-area {
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+            background: #0d121f;
+            position: relative;
+        }
+
+        .canvas-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            background: radial-gradient(circle, rgba(16, 24, 48, 0.3) 0%, rgba(10, 15, 30, 0.8) 100%);
+        }
+
+        canvas {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            cursor: crosshair;
+            box-shadow: var(--shadow-primary);
+        }
+
+        /* 3D Visualizer Panel */
+        .visualizer-area {
+            display: flex;
+            flex-direction: column;
+            background: #090c14;
+            position: relative;
+        }
+
+        #renderer-container {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Buttons & Actions */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-orange) 0%, #d85000 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(255, 94, 0, 0.3);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 6px 20px rgba(255, 94, 0, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-success {
+            background: var(--accent-green);
+            color: white;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-success:hover {
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-danger:hover {
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .btn-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        /* SVG File Uploader Custom Style */
+        .file-upload-btn {
+            position: relative;
+            overflow: hidden;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: rgba(0, 210, 255, 0.1);
+            color: var(--accent-blue);
+            border: 1px dashed rgba(0, 210, 255, 0.4);
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .file-upload-btn:hover {
+            background: rgba(0, 210, 255, 0.2);
+        }
+
+        .file-upload-btn input[type="file"] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .card-title-badge {
+            font-size: 0.75rem;
+            background: rgba(255, 94, 0, 0.1);
+            color: var(--accent-orange);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Coordinates selection & tooltip styles */
+        .coords-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.85rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .coords-select-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .coords-select-wrapper select {
+            background: rgba(15, 23, 42, 0.8);
+            color: var(--accent-blue);
+            border: 1px solid var(--border-color);
+            padding: 2px 6px;
+            font-size: 0.8rem;
+            border-radius: 4px;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .canvas-container {
+            position: relative;
+        }
+
+        #canvas-tooltip {
+            position: absolute;
+            background: rgba(9, 12, 20, 0.95);
+            color: #fff;
+            border: 1px solid var(--accent-orange);
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+            pointer-events: none;
+            display: none;
+            z-index: 100;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+            white-space: nowrap;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div class="logo">
+            <i class="fa-solid fa-robot" style="color: var(--accent-orange);"></i>
+            KUKA KR3 R540 <span>TRAJECTORY PRO</span>
+        </div>
+        <div class="status-badge">
+            <div class="status-pulse"></div>
+            ROS 2 CONNECTED
+        </div>
+    </header>
+
+    <div class="workspace">
+        <!-- Panel 1: Settings & Offsets -->
+        <div class="panel">
+            <div>
+                <h2><i class="fa-solid fa-sliders"></i> Robot Configuration</h2>
+                <div class="control-group">
+                    <label>Target Robot Model</label>
+                    <div class="select-wrapper">
+                        <select id="robot-type">
+                            <option value="B">Robot B (joint_a1 - joint_a6)</option>
+                            <option value="C">Robot C (link_1 - link_6)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h2><i class="fa-solid fa-arrows-to-dot"></i> Work Plane Offset</h2>
+                <div class="control-group" style="margin-bottom: 12px;">
+                    <label>Work Plane Preset</label>
+                    <div class="select-wrapper">
+                        <select id="plane-preset" onchange="applyPlanePreset(this.value)">
+                            <option value="horizontal">Horizontal Desk (Mặt bàn nằm ngang)</option>
+                            <option value="vertical_front">Vertical Front Wall (Bảng vẽ đứng trước mặt)</option>
+                            <option value="vertical_side" selected>Vertical Side Wall (Bảng vẽ đứng bên sườn)</option>
+                            <option value="custom">Custom (Tự cấu hình)</option>
+                        </select>
+                    </div>
+                </div>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">Set coordinate workspace
+                    plane relative to Robot Base origin.</p>
+
+                <div class="control-group">
+                    <label>Plane X Offset <span class="val" id="val-x">0.00 m</span></label>
+                    <input type="range" id="offset-x" min="-0.6" max="0.6" step="0.01" value="0.00">
+
+                    <label>Plane Y Offset <span class="val" id="val-y">0.00 m</span></label>
+                    <input type="range" id="offset-y" min="-0.6" max="0.6" step="0.01" value="0.00">
+
+                    <label>Plane Z Offset <span class="val" id="val-z">0.00 m</span></label>
+                    <input type="range" id="offset-z" min="-0.6" max="0.6" step="0.01" value="0.00">
+                </div>
+            </div>
+
+            <div>
+                <h2><i class="fa-solid fa-rotate"></i> Work Plane Rotation</h2>
+                <div class="control-group">
+                    <label>Roll (X-axis) <span class="val" id="val-roll">90°</span></label>
+                    <input type="range" id="rotate-roll" min="-90" max="90" step="5" value="90">
+
+                    <label>Pitch (Y-axis) <span class="val" id="val-pitch">0°</span></label>
+                    <input type="range" id="rotate-pitch" min="-90" max="90" step="5" value="0">
+
+                    <label>Yaw (Z-axis) <span class="val" id="val-yaw">0°</span></label>
+                    <input type="range" id="rotate-yaw" min="-180" max="180" step="5" value="0">
+                </div>
+            </div>
+
+            <div>
+                <h2><i class="fa-solid fa-gauge-high"></i> Execution Speed</h2>
+                <div class="control-group">
+                    <label>Trajectory Speed <span class="val" id="val-speed">1.0x</span></label>
+                    <input type="range" id="exec-speed" min="0.2" max="3.0" step="0.1" value="1.0">
+                </div>
+            </div>
+
+            <div>
+                <h2><i class="fa-solid fa-eye"></i> Visualizer Settings</h2>
+                <div class="control-group" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="show-workspace-sphere" checked
+                        onchange="toggleWorkspaceSphere(this.checked)" style="width: auto; cursor: pointer;">
+                    <label for="show-workspace-sphere" style="cursor: pointer; margin-bottom: 0;">Show Robot Workspace
+                        Sphere</label>
+                </div>
+            </div>
+
+
+
+            <div>
+                <h2><i class="fa-solid fa-ruler-combined"></i> Plane Size (mm)</h2>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; font-size: 0.85rem;">
+                    <div>
+                        <label>Width</label>
+                        <input type="number" id="plane-size-w" value="1000"
+                            style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: white; padding: 6px; border-radius: 4px; width: 100%; margin-top: 4px;">
+                    </div>
+                    <div>
+                        <label>Height</label>
+                        <input type="number" id="plane-size-h" value="1000"
+                            style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: white; padding: 6px; border-radius: 4px; width: 100%; margin-top: 4px;">
+                    </div>
+                    <div>
+                        <label>Depth</label>
+                        <input type="number" id="plane-size-d" value="1000"
+                            style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: white; padding: 6px; border-radius: 4px; width: 100%; margin-top: 4px;">
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h2 onclick="toggleSection('manual-joints-section')"
+                    style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span><i class="fa-solid fa-sliders"></i> Manual Joint Control</span>
+                    <i class="fa-solid fa-chevron-down" id="manual-joints-chevron"
+                        style="font-size: 0.8rem; transition: transform 0.2s;"></i>
+                </h2>
+                <div id="manual-joints-section"
+                    style="display: none; margin-top: 10px; border: 1px solid var(--border-color); padding: 12px; border-radius: 8px; background: rgba(0, 0, 0, 0.2); font-size: 0.85rem;">
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <div>
+                            <label>Joint 1: <span id="val-joint-j1">0°</span></label>
+                            <input type="range" id="joint-j1" min="-170" max="170" step="1" value="0"
+                                oninput="document.getElementById('val-joint-j1').innerText=this.value+'°'; sendManualJoints();">
+                        </div>
+                        <div>
+                            <label>Joint 2: <span id="val-joint-j2">0°</span></label>
+                            <input type="range" id="joint-j2" min="-170" max="50" step="1" value="0"
+                                oninput="document.getElementById('val-joint-j2').innerText=this.value+'°'; sendManualJoints();">
+                        </div>
+                        <div>
+                            <label>Joint 3: <span id="val-joint-j3">0°</span></label>
+                            <input type="range" id="joint-j3" min="-110" max="155" step="1" value="0"
+                                oninput="document.getElementById('val-joint-j3').innerText=this.value+'°'; sendManualJoints();">
+                        </div>
+                        <div>
+                            <label>Joint 4: <span id="val-joint-j4">0°</span></label>
+                            <input type="range" id="joint-j4" min="-175" max="175" step="1" value="0"
+                                oninput="document.getElementById('val-joint-j4').innerText=this.value+'°'; sendManualJoints();">
+                        </div>
+                        <div>
+                            <label>Joint 5: <span id="val-joint-j5">0°</span></label>
+                            <input type="range" id="joint-j5" min="-120" max="120" step="1" value="0"
+                                oninput="document.getElementById('val-joint-j5').innerText=this.value+'°'; sendManualJoints();">
+                        </div>
+                        <div>
+                            <label>Joint 6: <span id="val-joint-j6">0°</span></label>
+                            <input type="range" id="joint-j6" min="-350" max="350" step="1" value="0"
+                                oninput="document.getElementById('val-joint-j6').innerText=this.value+'°'; sendManualJoints();">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h2 onclick="toggleSection('jog-teach-section')"
+                    style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span><i class="fa-solid fa-hand-pointer"></i> Jog & Teach Control</span>
+                    <i class="fa-solid fa-chevron-down" id="jog-teach-chevron"
+                        style="font-size: 0.8rem; transition: transform 0.2s;"></i>
+                </h2>
+                <div id="jog-teach-section"
+                    style="display: none; margin-top: 10px; border: 1px solid var(--border-color); padding: 12px; border-radius: 8px; background: rgba(0, 0, 0, 0.2); font-size: 0.85rem;">
+                    <!-- Jog section -->
+                    <div style="margin-bottom: 12px;">
+                        <span
+                            style="font-weight: bold; color: var(--accent-blue); display: block; border-bottom: 1px solid var(--border-color); padding-bottom: 4px; margin-bottom: 8px;">Robot
+                            Jogging</span>
+
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <label>Pos Step (mm)</label>
+                            <input type="number" id="jog-pos-step" value="10" step="1" min="0.1"
+                                style="background: rgba(15, 23, 42, 0.8); color: white; border: 1px solid var(--border-color); padding: 4px 8px; border-radius: 4px; width: 80px; text-align: center;">
+                        </div>
+
+                        <!-- Pos Jog Grid -->
+                        <div
+                            style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; text-align: center;">
+                            <button class="btn btn-secondary" onclick="jogRobot('x', 1)" style="padding: 6px 0;">X
+                                +</button>
+                            <button class="btn btn-secondary" onclick="jogRobot('y', 1)" style="padding: 6px 0;">Y
+                                +</button>
+                            <button class="btn btn-secondary" onclick="jogRobot('z', 1)" style="padding: 6px 0;">Z
+                                +</button>
+                            <button class="btn btn-secondary" onclick="jogRobot('x', -1)" style="padding: 6px 0;">X
+                                -</button>
+                            <button class="btn btn-secondary" onclick="jogRobot('y', -1)" style="padding: 6px 0;">Y
+                                -</button>
+                            <button class="btn btn-secondary" onclick="jogRobot('z', -1)" style="padding: 6px 0;">Z
+                                -</button>
+                        </div>
+
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <label>Rot Step (deg)</label>
+                            <select id="jog-rot-step"
+                                style="background: rgba(15, 23, 42, 0.8); color: white; border: 1px solid var(--border-color); padding: 4px; border-radius: 4px;">
+                                <option value="1">1°</option>
+                                <option value="5" selected>5°</option>
+                                <option value="10">10°</option>
+                            </select>
+                        </div>
+
+                        <!-- Rot Jog Grid -->
+                        <div
+                            style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; margin-bottom: 16px;">
+                            <button class="btn btn-secondary" onclick="jogRobot('roll', 1)"
+                                style="padding: 6px 0; font-size: 0.8rem;">Rx +</button>
+                            <button class="btn btn-secondary" onclick="jogRobot('pitch', 1)"
+                                style="padding: 6px 0; font-size: 0.8rem;">Ry +</button>
+                            <button class="btn btn-secondary" onclick="jogRobot('yaw', 1)"
+                                style="padding: 6px 0; font-size: 0.8rem;">Rz +</button>
+                            <button class="btn btn-secondary" onclick="jogRobot('roll', -1)"
+                                style="padding: 6px 0; font-size: 0.8rem;">Rx -</button>
+                            <button class="btn btn-secondary" onclick="jogRobot('pitch', -1)"
+                                style="padding: 6px 0; font-size: 0.8rem;">Ry -</button>
+                            <button class="btn btn-secondary" onclick="jogRobot('yaw', -1)"
+                                style="padding: 6px 0; font-size: 0.8rem;">Rz -</button>
+                        </div>
+                    </div>
+
+                    <!-- Teach section -->
+                    <div>
+                        <span
+                            style="font-weight: bold; color: var(--accent-orange); display: block; border-bottom: 1px solid var(--border-color); padding-bottom: 4px; margin-bottom: 8px;">Teach
+                            Points</span>
+
+                        <button class="btn btn-primary" onclick="teachCurrentPoint()"
+                            style="width: 100%; padding: 8px; margin-bottom: 10px; font-size: 0.85rem;">
+                            <i class="fa-solid fa-plus"></i> Teach Current Point
+                        </button>
+
+                        <!-- List of points -->
+                        <div id="teach-points-list"
+                            style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 4px; background: rgba(0,0,0,0.3); padding: 4px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 4px;">
+                            <div
+                                style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 10px 0;">
+                                No points taught yet</div>
+                        </div>
+
+                        <div style="display: flex; gap: 6px;">
+                            <button class="btn btn-secondary" onclick="clearTeachPoints()"
+                                style="flex: 1; padding: 6px; font-size: 0.8rem;">Clear All</button>
+                            <button class="btn btn-success" onclick="executeTeachPath()"
+                                style="flex: 1; padding: 6px; font-size: 0.8rem;"><i class="fa-solid fa-play"></i> Run
+                                Path</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h2 onclick="toggleSection('limits-section')"
+                    style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span><i class="fa-solid fa-user-shield"></i> Soft Joint Limits</span>
+                    <i class="fa-solid fa-chevron-down" id="limits-chevron"
+                        style="font-size: 0.8rem; transition: transform 0.2s;"></i>
+                </h2>
+                <div id="limits-section"
+                    style="display: none; margin-top: 10px; border: 1px solid var(--border-color); padding: 12px; border-radius: 8px; background: rgba(0, 0, 0, 0.2);">
+                    <div
+                        style="display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 8px; font-size: 0.8rem; align-items: center;">
+                        <span
+                            style="grid-column: span 3; font-weight: bold; border-bottom: 1px solid var(--border-color); padding-bottom: 4px; color: var(--accent-orange);">Joint:
+                            Min / Max (deg)</span>
+
+                        <label>Joint 1</label>
+                        <input type="number" id="limit-j1-min"
+                            style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: white; padding: 4px; border-radius: 4px; width: 100%;"
+                            value="-170">
+                        <input type="number" id="limit-j1-max"
+                            style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: white; padding: 4px; border-radius: 4px; width: 100%;"
+                            value="170">
+
+                        <label>Joint 2</label>
+                        <input type="number" id="limit-j2-min"
+                            style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: white; padding: 4px; border-radius: 4px; width: 100%;"
+                            value="-170">
+                        <input type="number" id="limit-j2-max"
+                            style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: white; padding: 4px; border-radius: 4px; width: 100%;"
+                            value="50">
+
+                        <label>Joint 3</label>
+                        <input type="number" id="limit-j3-min"
+                            style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: white; padding: 4px; border-radius: 4px; width: 100%;"
+                            value="-110">
+                        <input type="number" id="limit-j3-max"
+                            style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: white; padding: 4px; border-radius: 4px; width: 100%;"
+                            value="155">
+
+                        <label>Joint 4</label>
+                        <input type="number" id="limit-j4-min"
+                            style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: white; padding: 4px; border-radius: 4px; width: 100%;"
+                            value="-175">
+                        <input type="number" id="limit-j4-max"
+                            style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: white; padding: 4px; border-radius: 4px; width: 100%;"
+                            value="175">
+
+                        <label>Joint 5</label>
+                        <input type="number" id="limit-j5-min"
+                            style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: white; padding: 4px; border-radius: 4px; width: 100%;"
+                            value="-120">
+                        <input type="number" id="limit-j5-max"
+                            style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: white; padding: 4px; border-radius: 4px; width: 100%;"
+                            value="120">
+
+                        <label>Joint 6</label>
+                        <input type="number" id="limit-j6-min"
+                            style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: white; padding: 4px; border-radius: 4px; width: 100%;"
+                            value="-350">
+                        <input type="number" id="limit-j6-max"
+                            style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: white; padding: 4px; border-radius: 4px; width: 100%;"
+                            value="350">
+                    </div>
+                    <button class="btn btn-primary" onclick="saveSoftLimits()"
+                        style="width: 100%; margin-top: 10px; padding: 8px 12px; font-size: 0.8rem; text-transform: none; letter-spacing: 0;"><i
+                            class="fa-solid fa-save"></i> Save Soft Limits</button>
+                </div>
+            </div>
+
+            <div class="btn-group">
+                <button class="btn btn-secondary" onclick="resetOffsets()"><i class="fa-solid fa-undo"></i>
+                    Reset</button>
+                <button class="btn btn-secondary" onclick="sendHome()"><i class="fa-solid fa-house"></i> Home
+                    pose</button>
+            </div>
+        </div>
+
+        <!-- Panel 2: 2D Canvas & CAD Importer -->
+        <div class="canvas-area">
+            <div class="canvas-header">
+                <h2><i class="fa-solid fa-pen-nib"></i> 2D Workplane Path Editor</h2>
+                <span class="card-title-badge" id="canvas-size-badge">Size: 1000x1000 mm</span>
+            </div>
+
+            <div class="coords-bar">
+                <div class="coords-select-wrapper">
+                    <span>Frame:</span>
+                    <select id="coord-frame" onchange="updateCanvasCoordsDisplay()">
+                        <option value="base">Robot Base Frame (Base)</option>
+                        <option value="local">Workplane Frame (Local)</option>
+                    </select>
+                </div>
+                <div>
+                    <span>Cursor:</span>
+                    <span id="canvas-coords-val" style="color: var(--accent-orange); font-weight: bold;">X: 0.0, Y: 0.0,
+                        Z: 0.0 mm</span>
+                </div>
+            </div>
+
+            <div class="canvas-container">
+                <canvas id="drawing-canvas" width="500" height="500"></canvas>
+                <div id="canvas-tooltip"></div>
+            </div>
+
+            <div
+                style="padding: 20px; background: rgba(15, 23, 42, 0.9); border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 12px;">
+                <div class="file-upload-btn">
+                    <i class="fa-solid fa-file-import"></i> Drag or Click to Import SVG (CAD) File
+                    <input type="file" id="svg-upload" accept=".svg">
+                </div>
+
+                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                    <button class="btn btn-secondary" style="flex: 1; font-size: 0.8rem; padding: 6px 8px;"
+                        id="tool-freehand" onclick="setDrawTool('freehand')" title="Vẽ tự do"><i
+                            class="fa-solid fa-pen"></i> Freehand</button>
+                    <button class="btn btn-secondary" style="flex: 1; font-size: 0.8rem; padding: 6px 8px;"
+                        id="tool-point" onclick="setDrawTool('point')" title="Vẽ điểm"><i class="fa-solid fa-circle"
+                            style="font-size:0.5rem;"></i> Point</button>
+                    <button class="btn btn-secondary" style="flex: 1; font-size: 0.8rem; padding: 6px 8px;"
+                        id="tool-line" onclick="setDrawTool('line')" title="Vẽ đoạn thẳng"><i
+                            class="fa-solid fa-minus"></i> Line</button>
+                    <button class="btn btn-secondary" style="flex: 1; font-size: 0.8rem; padding: 6px 8px;"
+                        id="tool-circle" onclick="setDrawTool('circle')" title="Vẽ hình tròn"><i
+                            class="fa-regular fa-circle"></i> Circle</button>
+                </div>
+
+                <div class="toolbar">
+                    <button class="btn btn-secondary" style="flex: 1;" onclick="clearCanvas()"><i
+                            class="fa-solid fa-trash"></i> Clear</button>
+                    <button class="btn btn-secondary" style="flex: 1;" onclick="previewPath()"><i
+                            class="fa-solid fa-eye"></i> Sim path</button>
+                    <button class="btn btn-success" style="flex: 2;" onclick="executeTrajectory()"><i
+                            class="fa-solid fa-play"></i> Run ROS2</button>
+                </div>
+                <button class="btn btn-danger" onclick="stopTrajectory()"><i class="fa-solid fa-hand"></i> EMERGENCY
+                    STOP</button>
+            </div>
+        </div>
+
+        <!-- Panel 3: 3D Visualization -->
+        <div class="visualizer-area">
+            <div class="canvas-header">
+                <h2><i class="fa-solid fa-cubes"></i> 3D Robot Workspace View</h2>
+                <span class="card-title-badge" id="preview-status"
+                    style="background: rgba(0, 210, 255, 0.1); color: var(--accent-blue);">Status: Idle</span>
+            </div>
+            <div id="renderer-container" style="position: relative; width: 100%; height: 100%;">
+                <!-- Telemetry overlay -->
+                <div id="telemetry-card"
+                    style="position: absolute; top: 15px; right: 15px; background: rgba(9, 12, 20, 0.85); backdrop-filter: blur(10px); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; z-index: 10; pointer-events: none; min-width: 220px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
+                    <div
+                        style="color: var(--accent-blue); font-weight: bold; border-bottom: 1px solid rgba(0, 210, 255, 0.3); padding-bottom: 4px; margin-bottom: 8px;">
+                        <i class="fa-solid fa-chart-simple"></i> LIVE TELEMETRY
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <div>
+                            <div style="color: var(--text-muted); font-size: 0.75rem;">TCP Position (FK)</div>
+                            <div
+                                style="display: grid; grid-template-columns: 1fr 1fr 1fr; font-size: 0.85rem; font-weight: bold; color: white;">
+                                <span>X:<span id="tele-tcp-x" style="color: var(--accent-orange);">0</span></span>
+                                <span>Y:<span id="tele-tcp-y" style="color: var(--accent-orange);">0</span></span>
+                                <span>Z:<span id="tele-tcp-z" style="color: var(--accent-orange);">0</span></span>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="color: var(--text-muted); font-size: 0.75rem;">TCP Orientation (Euler)</div>
+                            <div
+                                style="display: grid; grid-template-columns: 1fr 1fr 1fr; font-size: 0.85rem; font-weight: bold; color: white;">
+                                <span>R:<span id="tele-tcp-r" style="color: var(--accent-blue);">0°</span></span>
+                                <span>P:<span id="tele-tcp-p" style="color: var(--accent-blue);">0°</span></span>
+                                <span>Y:<span id="tele-tcp-yaw" style="color: var(--accent-blue);">0°</span></span>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="color: var(--text-muted); font-size: 0.75rem;">Joint Angles (Deg)</div>
+                            <div
+                                style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 0.8rem; color: #a9b2c3;">
+                                <span>J1: <span id="tele-j1">0°</span></span>
+                                <span>J2: <span id="tele-j2">0°</span></span>
+                                <span>J3: <span id="tele-j3">0°</span></span>
+                                <span>J4: <span id="tele-j4">0°</span></span>
+                                <span>J5: <span id="tele-j5">0°</span></span>
+                                <span>J6: <span id="tele-j6">0°</span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 2D Drawing Canvas Logic ---
+        const canvas = document.getElementById('drawing-canvas');
+        const ctx = canvas.getContext('2d');
+        let isDrawing = false;
+        let points = []; // Array of [x, y] relative to canvas center, scaled to meters
+        let currentDrawTool = 'freehand'; // 'freehand', 'point', 'line', 'circle'
+        let lineStart = null; // For line tool
+        let circleCenter = null; // For circle tool
+
+        function getPlaneSize() {
+            // Returns plane size in meters
+            return parseFloat(document.getElementById('plane-size-w').value || 1000) / 1000.0;
+        }
+
+        function setDrawTool(tool) {
+            currentDrawTool = tool;
+            lineStart = null;
+            circleCenter = null;
+            // Highlight active tool
+            ['tool-freehand', 'tool-point', 'tool-line', 'tool-circle'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) btn.style.borderColor = (id === 'tool-' + tool) ? 'var(--accent-orange)' : 'var(--border-color)';
+            });
+        }
+
+        function getBaseOriginInLocal() {
+            try {
+                const rawX = parseFloat(document.getElementById('offset-x').value);
+                const rawY = parseFloat(document.getElementById('offset-y').value);
+                const rawZ = parseFloat(document.getElementById('offset-z').value);
+                const px = rawX;
+                const py = rawZ; // Swapped!
+                const pz = rawY; // Swapped!
+                const roll = THREE.MathUtils.degToRad(parseFloat(document.getElementById('rotate-roll').value));
+                const pitch = THREE.MathUtils.degToRad(parseFloat(document.getElementById('rotate-pitch').value));
+                const yaw = THREE.MathUtils.degToRad(parseFloat(document.getElementById('rotate-yaw').value));
+
+                const tempPlane = new THREE.Object3D();
+                tempPlane.position.set(px, py, pz);
+                tempPlane.rotation.set(roll, pitch, yaw);
+                tempPlane.updateMatrixWorld(true);
+
+                const inv = new THREE.Matrix4().copy(tempPlane.matrixWorld).invert();
+                const originInLocal = new THREE.Vector3(0, 0, 0).applyMatrix4(inv);
+                return originInLocal;
+            } catch (e) {
+                return new THREE.Vector3(0, 0, 0);
+            }
+        }
+
+        function drawGrid() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+            ctx.lineWidth = 1;
+
+            // Draw grid lines (every 20 pixels = 20mm)
+            for (let i = 0; i <= canvas.width; i += 20) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, canvas.height);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(canvas.width, i);
+                ctx.stroke();
+            }
+
+            // Draw center cross
+            ctx.strokeStyle = 'rgba(255, 94, 0, 0.2)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.moveTo(0, canvas.height / 2);
+            ctx.lineTo(canvas.width, canvas.height / 2);
+            ctx.stroke();
+
+            // Draw projected Robot Base Origin (0,0,0)
+            const localBase = getBaseOriginInLocal();
+            const halfSize = getPlaneSize() / 2;
+            if (Math.abs(localBase.x) <= halfSize && Math.abs(localBase.y) <= halfSize) {
+                const cx = canvas.width / 2;
+                const cy = canvas.height / 2;
+                const scale = canvas.width / getPlaneSize(); // pixels per meter
+                const bx = cx + localBase.x * scale;
+                const by = cy - localBase.y * scale; // flip y
+
+                ctx.strokeStyle = '#ef4444';
+                ctx.fillStyle = '#ef4444';
+                ctx.lineWidth = 2;
+
+                // Draw target crosshair
+                ctx.beginPath();
+                ctx.arc(bx, by, 6, 0, 2 * Math.PI);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(bx, by, 2, 0, 2 * Math.PI);
+                ctx.fill();
+
+                ctx.font = '10px Outfit';
+                ctx.fillText('Robot Base (0,0,0)', bx + 10, by + 4);
+            }
+        }
+
+        function redrawCanvas() {
+            drawGrid();
+            if (points && points.length > 0) {
+                const sz = getPlaneSize();
+                ctx.beginPath();
+                ctx.strokeStyle = '#ff5e00';
+                ctx.lineWidth = 3;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                points.forEach((pt, idx) => {
+                    const px = (pt[0] / sz) * canvas.width + canvas.width / 2;
+                    const py = (-pt[1] / sz) * canvas.height + canvas.height / 2;
+                    if (idx === 0) {
+                        ctx.moveTo(px, py);
+                    } else {
+                        ctx.lineTo(px, py);
+                    }
+                });
+                ctx.stroke();
+
+                // Draw points as dots
+                ctx.fillStyle = '#ff5e00';
+                points.forEach(pt => {
+                    const px = (pt[0] / sz) * canvas.width + canvas.width / 2;
+                    const py = (-pt[1] / sz) * canvas.height + canvas.height / 2;
+                    ctx.beginPath();
+                    ctx.arc(px, py, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
+        }
+
+        function getMousePos(e) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+        }
+
+        // Convert canvas pixel coordinates to work plane coordinates (meters)
+        function pixelToMeter(px, py) {
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            const sz = getPlaneSize();
+            const scale = sz / canvas.width;
+            return {
+                x: (px - cx) * scale,
+                y: -(py - cy) * scale // Flip y
+            };
+        }
+
+        let lastMousePos = { x: 0, y: 0 };
+        let isMouseInCanvas = false;
+
+        function updateCanvasCoordsDisplay() {
+            if (!isMouseInCanvas) return;
+
+            const meterPos = pixelToMeter(lastMousePos.x, lastMousePos.y);
+            const frame = document.getElementById('coord-frame').value;
+
+            let x, y, z;
+            if (frame === 'base') {
+                const baseCoords = getBaseCoordinates(meterPos.x, meterPos.y);
+                x = baseCoords.x * 1000;
+                y = baseCoords.y * 1000;
+                z = baseCoords.z * 1000;
+            } else {
+                x = meterPos.x * 1000;
+                y = meterPos.y * 1000;
+                z = 0.0;
+            }
+
+            document.getElementById('canvas-coords-val').innerText =
+                `X: ${x.toFixed(1)}, Y: ${y.toFixed(1)}, Z: ${z.toFixed(1)} mm`;
+
+            const tooltip = document.getElementById('canvas-tooltip');
+            tooltip.innerText = `X: ${x.toFixed(1)}\nY: ${y.toFixed(1)}\nZ: ${z.toFixed(1)}`;
+        }
+
+        function getBaseCoordinates(localX, localY) {
+            const rawX = parseFloat(document.getElementById('offset-x').value);
+            const rawY = parseFloat(document.getElementById('offset-y').value);
+            const rawZ = parseFloat(document.getElementById('offset-z').value);
+            const px = rawX;
+            const py = rawZ; // Swapped!
+            const pz = rawY; // Swapped!
+            const roll = THREE.MathUtils.degToRad(parseFloat(document.getElementById('rotate-roll').value));
+            const pitch = THREE.MathUtils.degToRad(parseFloat(document.getElementById('rotate-pitch').value));
+            const yaw = THREE.MathUtils.degToRad(parseFloat(document.getElementById('rotate-yaw').value));
+
+            const pos = new THREE.Vector3(localX, localY, 0);
+            const tempPlane = new THREE.Object3D();
+            tempPlane.position.set(px, py, pz);
+            tempPlane.rotation.set(roll, pitch, yaw);
+            tempPlane.updateMatrixWorld(true);
+
+            pos.applyMatrix4(tempPlane.matrixWorld);
+            return pos;
+        }
+
+        // Generate circle points
+        function generateCirclePoints(cx, cy, radius, numSegments) {
+            const pts = [];
+            for (let i = 0; i <= numSegments; i++) {
+                const angle = (2 * Math.PI * i) / numSegments;
+                pts.push([cx + radius * Math.cos(angle), cy + radius * Math.sin(angle)]);
+            }
+            return pts;
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            const pos = getMousePos(e);
+            const meterPos = pixelToMeter(pos.x, pos.y);
+
+            if (currentDrawTool === 'freehand') {
+                isDrawing = true;
+                points = [];
+                redrawCanvas();
+                ctx.beginPath();
+                ctx.moveTo(pos.x, pos.y);
+                ctx.strokeStyle = '#ff5e00';
+                ctx.lineWidth = 3;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                points.push([meterPos.x, meterPos.y]);
+            } else if (currentDrawTool === 'point') {
+                points.push([meterPos.x, meterPos.y]);
+                redrawCanvas();
+                update3DPath();
+            } else if (currentDrawTool === 'line') {
+                if (!lineStart) {
+                    lineStart = [meterPos.x, meterPos.y];
+                } else {
+                    // Generate line from lineStart to current click
+                    const dx = meterPos.x - lineStart[0];
+                    const dy = meterPos.y - lineStart[1];
+                    const numSteps = 20;
+                    for (let i = 0; i <= numSteps; i++) {
+                        const t = i / numSteps;
+                        points.push([lineStart[0] + dx * t, lineStart[1] + dy * t]);
+                    }
+                    lineStart = null;
+                    redrawCanvas();
+                    update3DPath();
+                }
+            } else if (currentDrawTool === 'circle') {
+                if (!circleCenter) {
+                    circleCenter = [meterPos.x, meterPos.y];
+                } else {
+                    const radius = Math.sqrt(
+                        Math.pow(meterPos.x - circleCenter[0], 2) +
+                        Math.pow(meterPos.y - circleCenter[1], 2)
+                    );
+                    const circlePts = generateCirclePoints(circleCenter[0], circleCenter[1], radius, 64);
+                    points = points.concat(circlePts);
+                    circleCenter = null;
+                    redrawCanvas();
+                    update3DPath();
+                }
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            const pos = getMousePos(e);
+            lastMousePos = pos;
+            isMouseInCanvas = true;
+
+            updateCanvasCoordsDisplay();
+
+            const tooltip = document.getElementById('canvas-tooltip');
+            tooltip.style.left = (pos.x + 15) + 'px';
+            tooltip.style.top = (pos.y + 15) + 'px';
+
+            if (currentDrawTool === 'freehand' && isDrawing) {
+                ctx.lineTo(pos.x, pos.y);
+                ctx.stroke();
+                const meterPos = pixelToMeter(pos.x, pos.y);
+                points.push([meterPos.x, meterPos.y]);
+            }
+
+            // Show preview for line/circle tools
+            if (currentDrawTool === 'line' && lineStart) {
+                redrawCanvas();
+                const sz = getPlaneSize();
+                const sx = (lineStart[0] / sz) * canvas.width + canvas.width / 2;
+                const sy = (-lineStart[1] / sz) * canvas.height + canvas.height / 2;
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(255, 94, 0, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.moveTo(sx, sy);
+                ctx.lineTo(pos.x, pos.y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+            if (currentDrawTool === 'circle' && circleCenter) {
+                redrawCanvas();
+                const meterPos = pixelToMeter(pos.x, pos.y);
+                const radius = Math.sqrt(
+                    Math.pow(meterPos.x - circleCenter[0], 2) +
+                    Math.pow(meterPos.y - circleCenter[1], 2)
+                );
+                const sz = getPlaneSize();
+                const ccx = (circleCenter[0] / sz) * canvas.width + canvas.width / 2;
+                const ccy = (-circleCenter[1] / sz) * canvas.height + canvas.height / 2;
+                const radiusPx = (radius / sz) * canvas.width;
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(255, 94, 0, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.arc(ccx, ccy, radiusPx, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            if (currentDrawTool === 'freehand') {
+                isDrawing = false;
+                update3DPath();
+            }
+        });
+
+        canvas.addEventListener('mouseenter', () => {
+            isMouseInCanvas = true;
+            document.getElementById('canvas-tooltip').style.display = 'block';
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            isMouseInCanvas = false;
+            document.getElementById('canvas-tooltip').style.display = 'none';
+            if (currentDrawTool === 'freehand') isDrawing = false;
+        });
+
+        function clearCanvas() {
+            points = [];
+            redrawCanvas();
+            update3DPath();
+        }
+
+        // --- SVG CAD File Parsing Logic ---
+        document.getElementById('svg-upload').addEventListener('change', function (e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function (event) {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(event.target.result, 'image/svg+xml');
+                const paths = doc.querySelectorAll('path');
+
+                if (paths.length === 0) {
+                    alert("No paths found in SVG! Please make sure it contains vector paths.");
+                    return;
+                }
+
+                points = [];
+                // Simple parsing of path points (approximating path segments)
+                paths.forEach(path => {
+                    const length = path.getTotalLength ? path.getTotalLength() : 500;
+                    const samples = 100;
+                    for (let i = 0; i <= samples; i++) {
+                        try {
+                            const pt = path.getPointAtLength((i / samples) * length);
+                            // Normalize points based on some scale (SVG coordinates usually positive)
+                            // We will center the SVG bounds and map it to our 400x400 mm frame
+                            points.push({ x: pt.x, y: pt.y });
+                        } catch (e) {
+                            // In case browser environment doesn't support getPointAtLength on standard elements
+                        }
+                    }
+                });
+
+                if (points.length === 0) {
+                    // Fallback to reading points from polygons or basic elements
+                    alert("SVG parsing completed. If the path doesn't display, convert paths to lines or simple polylines.");
+                    return;
+                }
+
+                // Auto center and scale the SVG points to fit within ±0.15 meters (300mm)
+                let minX = Math.min(...points.map(p => p.x));
+                let maxX = Math.max(...points.map(p => p.x));
+                let minY = Math.min(...points.map(p => p.y));
+                let maxY = Math.max(...points.map(p => p.y));
+
+                let svgWidth = maxX - minX || 1;
+                let svgHeight = maxY - minY || 1;
+                let centerSvgX = minX + svgWidth / 2;
+                let centerSvgY = minY + svgHeight / 2;
+
+                const sz = getPlaneSize();
+                let fitScale = (sz * 0.8) / Math.max(svgWidth, svgHeight); // Fit within 80% of plane
+
+                points = points.map(p => [
+                    (p.x - centerSvgX) * fitScale,
+                    -(p.y - centerSvgY) * fitScale // invert y
+                ]);
+
+                // Draw loaded points back on 2D canvas
+                redrawCanvas();
+                update3DPath();
+            };
+            reader.readAsText(file);
+        });
+
+        // --- Offset Parameter Handling ---
+        const sliders = ['offset-x', 'offset-y', 'offset-z', 'rotate-roll', 'rotate-pitch', 'rotate-yaw', 'exec-speed'];
+        sliders.forEach(id => {
+            const el = document.getElementById(id);
+            el.addEventListener('input', () => {
+                let suffix = ' m';
+                if (id.startsWith('rotate')) suffix = '°';
+                else if (id === 'exec-speed') suffix = 'x';
+
+                document.getElementById('val-' + id.split('-')[1]).innerText = el.value + suffix;
+                if (id !== 'exec-speed') {
+                    document.getElementById('plane-preset').value = 'custom';
+                }
+                update3DWorkplane();
+                update3DPath();
+            });
+        });
+
+        function applyPlanePreset(preset) {
+            if (preset === 'custom') return;
+
+            let x = 0.00, y = 0.00, z = 0.00;
+            let roll = 0, pitch = 0, yaw = 0;
+
+            if (preset === 'horizontal') {
+                x = 0.00; y = 0.00; z = 0.00;
+                roll = 0; pitch = 0; yaw = 0;
+            } else if (preset === 'vertical_front') {
+                x = 0.00; y = 0.00; z = 0.00;
+                roll = 0; pitch = -90; yaw = 0;
+            } else if (preset === 'vertical_side') {
+                x = 0.00; y = 0.00; z = 0.00;
+                roll = 90; pitch = 0; yaw = 0;
+            }
+
+            document.getElementById('offset-x').value = x;
+            document.getElementById('offset-y').value = y;
+            document.getElementById('offset-z').value = z;
+            document.getElementById('rotate-roll').value = roll;
+            document.getElementById('rotate-pitch').value = pitch;
+            document.getElementById('rotate-yaw').value = yaw;
+
+            sliders.forEach(id => {
+                if (id === 'exec-speed') return;
+                let suffix = ' m';
+                if (id.startsWith('rotate')) suffix = '°';
+                document.getElementById('val-' + id.split('-')[1]).innerText = document.getElementById(id).value + suffix;
+            });
+
+            update3DWorkplane();
+            update3DPath();
+        }
+
+        function toggleSection(id) {
+            const el = document.getElementById(id);
+            const chevronId = id.replace('-section', '-chevron');
+            const chevron = document.getElementById(chevronId);
+            if (el.style.display === 'none') {
+                el.style.display = 'block';
+                if (chevron) chevron.style.transform = 'rotate(180deg)';
+            } else {
+                el.style.display = 'none';
+                if (chevron) chevron.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        function saveSoftLimits() {
+            const soft_limits = [
+                [parseFloat(document.getElementById('limit-j1-min').value), parseFloat(document.getElementById('limit-j1-max').value)],
+                [parseFloat(document.getElementById('limit-j2-min').value), parseFloat(document.getElementById('limit-j2-max').value)],
+                [parseFloat(document.getElementById('limit-j3-min').value), parseFloat(document.getElementById('limit-j3-max').value)],
+                [parseFloat(document.getElementById('limit-j4-min').value), parseFloat(document.getElementById('limit-j4-max').value)],
+                [parseFloat(document.getElementById('limit-j5-min').value), parseFloat(document.getElementById('limit-j5-max').value)],
+                [parseFloat(document.getElementById('limit-j6-min').value), parseFloat(document.getElementById('limit-j6-max').value)]
+            ];
+
+            fetch('/api/limits', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ soft_limits: soft_limits })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert("Soft limits saved successfully!");
+                    } else {
+                        alert("Error saving limits: " + data.message);
+                    }
+                })
+                .catch(err => console.error("Error saving soft limits:", err));
+        }
+
+        function loadSoftLimits() {
+            fetch('/api/limits')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.soft_limits && data.soft_limits.length === 6) {
+                        for (let i = 1; i <= 6; i++) {
+                            document.getElementById(`limit-j${i}-min`).value = data.soft_limits[i - 1][0].toFixed(1);
+                            document.getElementById(`limit-j${i}-max`).value = data.soft_limits[i - 1][1].toFixed(1);
+                        }
+                    }
+                })
+                .catch(err => console.error("Error loading soft limits:", err));
+        }
+
+        function toggleWorkspaceSphere(visible) {
+            if (workspaceSphere) {
+                workspaceSphere.visible = visible;
+            }
+        }
+
+        // CHÚ THÍCH (GIẢI THÍCH): 
+        // Hai hàm mapCoordinates và unmapCoordinates dùng để chuyển đổi hệ tọa độ hiển thị (Y và Z đảo cho nhau)
+        // Hệ quy chiếu chuẩn của Robot: X tiến, Y ngang trái, Z hướng lên.
+        // Hệ quy chiếu hiển thị (User muốn): X tiến, Y hướng lên (tức Z robot), Z ngang trái (tức Y robot).
+        // Khi gửi dữ liệu lên Backend -> Dùng mapCoordinates để trả về đúng Y, Z chuẩn của robot.
+        // Khi nhận dữ liệu từ Backend -> Dùng unmapCoordinates để chuyển sang hệ hiển thị đảo Y-Z.
+        function mapCoordinates(x, y, z) {
+            return { x: x, y: z, z: y };
+        }
+
+        function unmapCoordinates(x, y, z) {
+            return { x: x, y: y, z: z };
+        }
+
+        function sendManualJoints() {
+            const joints = [
+                parseFloat(document.getElementById('joint-j1').value),
+                parseFloat(document.getElementById('joint-j2').value),
+                parseFloat(document.getElementById('joint-j3').value),
+                parseFloat(document.getElementById('joint-j4').value),
+                parseFloat(document.getElementById('joint-j5').value),
+                parseFloat(document.getElementById('joint-j6').value)
+            ];
+            const robotType = document.getElementById('robot-type').value;
+
+            fetch('/api/move_to_joints', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ joints: joints, robot_type: robotType })
+            })
+                .catch(err => console.error("Error sending manual joints:", err));
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            loadSoftLimits();
+        });
+
+        function resetOffsets() {
+            document.getElementById('plane-preset').value = 'vertical_side';
+            document.getElementById('offset-x').value = 0.00;
+            document.getElementById('offset-y').value = 0.00;
+            document.getElementById('offset-z').value = 0.00;
+            document.getElementById('rotate-roll').value = 90;
+            document.getElementById('rotate-pitch').value = 0;
+            document.getElementById('rotate-yaw').value = 0;
+            document.getElementById('exec-speed').value = 1.0;
+
+            sliders.forEach(id => {
+                let suffix = ' m';
+                if (id.startsWith('rotate')) suffix = '°';
+                else if (id === 'exec-speed') suffix = 'x';
+                document.getElementById('val-' + id.split('-')[1]).innerText = document.getElementById(id).value + suffix;
+            });
+
+            update3DWorkplane();
+            update3DPath();
+        }
+
+        // --- Web API Call Functions ---
+        // CHÚ THÍCH (GIẢI THÍCH): Hàm này đóng gói dữ liệu quỹ đạo vẽ để gửi lên Backend.
+        // - points: Mảng chứa các điểm 2D nằm trên hệ tọa độ cục bộ của Mặt phẳng vẽ (Workplane Frame).
+        // - plane_x, plane_y, plane_z: Tọa độ gốc của Mặt phẳng làm việc so với Robot Base.
+        // - plane_roll, plane_pitch, plane_yaw: Góc xoay mặt phẳng làm việc so với Robot Base.
+        // Nếu bạn muốn thay đổi tham số gửi đi của mặt phẳng làm việc (Workplane Frame), hãy sửa tại đây.
+        function getPayload() {
+            const mappedPlane = mapCoordinates(
+                parseFloat(document.getElementById('offset-x').value),
+                parseFloat(document.getElementById('offset-y').value),
+                parseFloat(document.getElementById('offset-z').value)
+            );
+            return {
+                points: points, // Gửi danh sách các điểm 2D trên hệ trục cục bộ của mặt phẳng làm việc (Workplane Frame)
+                plane_x: mappedPlane.x, // Gốc mặt phẳng theo X robot
+                plane_y: mappedPlane.y, // Gốc mặt phẳng theo Y robot (đã đảo từ Z hiển thị)
+                plane_z: mappedPlane.z, // Gốc mặt phẳng theo Z robot (đã đảo từ Y hiển thị)
+                plane_roll: document.getElementById('rotate-roll').value,   // Góc xoay quanh trục X
+                plane_pitch: document.getElementById('rotate-pitch').value, // Góc xoay quanh trục Y
+                plane_yaw: document.getElementById('rotate-yaw').value,     // Góc xoay quanh trục Z
+                robot_type: document.getElementById('robot-type').value,
+                speed: document.getElementById('exec-speed').value
+            };
+        }
+
+        function previewPath() {
+            if (points.length === 0) {
+                alert("Please draw or import a path first!");
+                return;
+            }
+            document.getElementById('preview-status').innerText = "Status: Simulating...";
+            document.getElementById('preview-status').style.color = "var(--accent-orange)";
+
+            fetch('/api/preview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(getPayload())
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        animateRobotPreview(data.joint_trajectory);
+                    }
+                })
+                .catch(err => console.error("Preview error:", err));
+        }
+
+        function executeTrajectory() {
+            if (points.length === 0) {
+                alert("Please draw or import a path first!");
+                return;
+            }
+            document.getElementById('preview-status').innerText = "Status: Executing...";
+            document.getElementById('preview-status').style.color = "var(--accent-green)";
+
+            fetch('/api/execute', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(getPayload())
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        console.log("Trajectory execution sent successfully.");
+                    }
+                })
+                .catch(err => console.error("Execution error:", err));
+        }
+
+        function stopTrajectory() {
+            fetch('/api/stop', { method: 'POST' })
+                .then(() => {
+                    document.getElementById('preview-status').innerText = "Status: Stopped";
+                    document.getElementById('preview-status').style.color = "#ef4444";
+                });
+        }
+
+        function sendHome() {
+            fetch('/api/home', { method: 'POST' })
+                .then(() => {
+                    document.getElementById('preview-status').innerText = "Status: Homing";
+                    document.getElementById('preview-status').style.color = "var(--accent-blue)";
+                });
+        }
+
+        // Global variable to store current TCP state for Jog & Teach
+        let currentTCP = { x: 0, y: 0, z: 0, roll: 0, pitch: 0, yaw: 0 };
+        let teachPoints = [];
+
+        // Forward Kinematics in Javascript using Three.js Math
+        function forwardKinematicsJS(q) {
+            // DH or homogeneous transformation matrices for KUKA KR3 R540
+            const T01 = new THREE.Matrix4().makeTranslation(0.0, 0.0, 0.345).multiply(new THREE.Matrix4().makeRotationZ(-q[0]));
+            const T12 = new THREE.Matrix4().makeTranslation(0.020, 0.0, 0.0).multiply(new THREE.Matrix4().makeRotationY(q[1]));
+            const T02 = T01.clone().multiply(T12);
+            const T23 = new THREE.Matrix4().makeTranslation(0.260, 0.0, 0.0).multiply(new THREE.Matrix4().makeRotationY(q[2]));
+            const T03 = T02.clone().multiply(T23);
+            const T34 = new THREE.Matrix4().makeTranslation(0.0, 0.0, 0.020).multiply(new THREE.Matrix4().makeRotationX(-q[3]));
+            const T04 = T03.clone().multiply(T34);
+            const T45 = new THREE.Matrix4().makeTranslation(0.260, 0.0, 0.0).multiply(new THREE.Matrix4().makeRotationY(q[4]));
+            const T05 = T04.clone().multiply(T45);
+            const T56 = new THREE.Matrix4().makeTranslation(0.075, 0.0, 0.0).multiply(new THREE.Matrix4().makeRotationX(-q[5]));
+            const T06 = T05.clone().multiply(T56);
+            const T_flange_tool0 = new THREE.Matrix4().makeRotationY(Math.PI / 2.0);
+            const T0_tool0 = T06.clone().multiply(T_flange_tool0);
+
+            const position = new THREE.Vector3();
+            const rotation = new THREE.Quaternion();
+            const scale = new THREE.Vector3();
+            T0_tool0.decompose(position, rotation, scale);
+
+            // Extract Euler angles ('XYZ' sequence: Roll about X, Pitch about Y, Yaw about Z)
+            const euler = new THREE.Euler().setFromRotationMatrix(T0_tool0, 'XYZ');
+
+            return {
+                x: position.x * 1000,
+                y: position.y * 1000,
+                z: position.z * 1000,
+                roll: THREE.MathUtils.radToDeg(euler.x),
+                pitch: THREE.MathUtils.radToDeg(euler.y),
+                yaw: THREE.MathUtils.radToDeg(euler.z)
+            };
+        }
+
+        // Live telemetry updater
+        function updateTelemetryDisplay(q) {
+            const fk = forwardKinematicsJS(q);
+
+            // CHÚ THÍCH (GIẢI THÍCH): Đảo trục Y và Z khi hiển thị tọa độ ra thẻ Live Telemetry
+            // Người dùng muốn: trục Y hiển thị = trục Z của robot; trục Z hiển thị = trục Y của robot.
+            const displayPos = unmapCoordinates(fk.x, fk.y, fk.z);
+            fk.x = displayPos.x;
+            fk.y = displayPos.y;
+            fk.z = displayPos.z;
+
+            // Đồng thời đảo các góc quay quanh trục Y (pitch) và Z (yaw) để khớp với hệ quy chiếu hiển thị
+            const tempYaw = fk.yaw;
+            fk.yaw = fk.pitch;
+            fk.pitch = tempYaw;
+
+            currentTCP = fk; // Lưu lại để làm mốc di chuyển cho tính năng Jog & Teach
+
+            document.getElementById('tele-tcp-x').innerText = fk.x.toFixed(1);
+            document.getElementById('tele-tcp-y').innerText = fk.y.toFixed(1);
+            document.getElementById('tele-tcp-z').innerText = fk.z.toFixed(1);
+            document.getElementById('tele-tcp-r').innerText = fk.roll.toFixed(1) + '°';
+            document.getElementById('tele-tcp-p').innerText = fk.pitch.toFixed(1) + '°';
+            document.getElementById('tele-tcp-yaw').innerText = fk.yaw.toFixed(1) + '°';
+
+            for (let i = 1; i <= 6; i++) {
+                const deg = (q[i - 1] * 180 / Math.PI).toFixed(1);
+                document.getElementById(`tele-j${i}`).innerText = deg + '°';
+            }
+        }
+
+        // Jog Robot incrementally
+        function jogRobot(axis, direction) {
+            const posStep = parseFloat(document.getElementById('jog-pos-step').value || 10);
+            const rotStep = parseFloat(document.getElementById('jog-rot-step').value || 5);
+
+            let tx = currentTCP.x;
+            let ty = currentTCP.y;
+            let tz = currentTCP.z;
+            let troll = currentTCP.roll;
+            let tpitch = currentTCP.pitch;
+            let tyaw = currentTCP.yaw;
+
+            // Tính toán tọa độ mục tiêu mới theo giao diện hiển thị
+            if (axis === 'x') tx += direction * posStep;
+            else if (axis === 'y') ty += direction * posStep;
+            else if (axis === 'z') tz += direction * posStep;
+            else if (axis === 'roll') troll += direction * rotStep;
+            else if (axis === 'pitch') tpitch += direction * rotStep;
+            else if (axis === 'yaw') tyaw += direction * rotStep;
+
+            // CHÚ THÍCH (GIẢI THÍCH): Chuyển đổi ngược lại hệ tọa độ trước khi gửi lên API Backend
+            // Vì backend chạy solver IK dựa trên hệ tọa độ chuẩn của robot, ta phải đảo ngược lại Y và Z (và Pitch/Yaw)
+            const mappedPos = mapCoordinates(tx, ty, tz);
+            const payload = {
+                x: mappedPos.x,
+                y: mappedPos.y, // Gửi Y thực tế của robot (lấy từ Z hiển thị)
+                z: mappedPos.z, // Gửi Z thực tế của robot (lấy từ Y hiển thị)
+                roll: troll,
+                pitch: tyaw,  // Đảo Pitch và Yaw ngược lại
+                yaw: tpitch,
+                robot_type: document.getElementById('robot-type').value
+            };
+
+            document.getElementById('preview-status').innerText = "Status: Solving...";
+            document.getElementById('preview-status').style.color = "var(--accent-orange)";
+
+            fetch('/api/move_to_pose', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        document.getElementById('preview-status').innerText = "Status: Executing...";
+                        document.getElementById('preview-status').style.color = "var(--accent-green)";
+                    } else {
+                        document.getElementById('preview-status').innerText = "Status: Failed";
+                        document.getElementById('preview-status').style.color = "#ef4444";
+                    }
+                })
+                .catch(err => {
+                    console.error("Jog execution error:", err);
+                    document.getElementById('preview-status').innerText = "Status: Error";
+                    document.getElementById('preview-status').style.color = "#ef4444";
+                });
+        }
+
+        // Teach Point Functions
+        function teachCurrentPoint() {
+            const joints = [...currentJointAngles];
+            const pt = {
+                id: Date.now(),
+                x: currentTCP.x,
+                y: currentTCP.y,
+                z: currentTCP.z,
+                roll: currentTCP.roll,
+                pitch: currentTCP.pitch,
+                yaw: currentTCP.yaw,
+                joints: joints
+            };
+            teachPoints.push(pt);
+            updateTeachPointsUI();
+        }
+
+        function deleteTeachPoint(id) {
+            teachPoints = teachPoints.filter(p => p.id !== id);
+            updateTeachPointsUI();
+        }
+
+        function goToTeachPoint(id) {
+            const pt = teachPoints.find(p => p.id === id);
+            if (!pt) return;
+
+            document.getElementById('preview-status').innerText = "Status: Executing...";
+            document.getElementById('preview-status').style.color = "var(--accent-green)";
+
+            fetch('/api/move_to_joints', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    joints: pt.joints.map(j => j * 180 / Math.PI),
+                    robot_type: document.getElementById('robot-type').value
+                })
+            })
+                .catch(err => console.error("Error going to teach point:", err));
+        }
+
+        function clearTeachPoints() {
+            teachPoints = [];
+            updateTeachPointsUI();
+        }
+
+        function executeTeachPath() {
+            if (teachPoints.length === 0) {
+                alert("Please teach some points first!");
+                return;
+            }
+
+            // Build the joint trajectory degree configurations list
+            const trajectoryDeg = [];
+            for (let i = 0; i < teachPoints.length; i++) {
+                trajectoryDeg.push(teachPoints[i].joints.map(j => j * 180 / Math.PI));
+            }
+
+            document.getElementById('preview-status').innerText = "Status: Running Path...";
+            document.getElementById('preview-status').style.color = "var(--accent-green)";
+
+            fetch('/api/execute_joints', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    trajectory: trajectoryDeg,
+                    robot_type: document.getElementById('robot-type').value
+                })
+            })
+                .catch(err => console.error("Error executing teach trajectory:", err));
+        }
+
+        function updateTeachPointsUI() {
+            const container = document.getElementById('teach-points-list');
+            if (teachPoints.length === 0) {
+                container.innerHTML = `<div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 10px 0;">No points taught yet</div>`;
+                return;
+            }
+
+            container.innerHTML = '';
+            teachPoints.forEach((pt, idx) => {
+                const row = document.createElement('div');
+                row.style.display = 'flex';
+                row.style.justifyContent = 'space-between';
+                row.style.alignItems = 'center';
+                row.style.padding = '6px';
+                row.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+                row.style.fontSize = '0.75rem';
+
+                row.innerHTML = `
+                    <div style="color: white; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px;" title="P${idx + 1}: X:${pt.x.toFixed(0)} Y:${pt.y.toFixed(0)} Z:${pt.z.toFixed(0)}">
+                        <strong>P${idx + 1}</strong>: ${pt.x.toFixed(0)}, ${pt.y.toFixed(0)}, ${pt.z.toFixed(0)}
+                    </div>
+                    <div style="display: flex; gap: 4px;">
+                        <button class="btn btn-secondary" onclick="goToTeachPoint(${pt.id})" style="padding: 2px 6px; font-size: 0.7rem; min-width: auto; height: auto;">Go</button>
+                        <button class="btn btn-danger" onclick="deleteTeachPoint(${pt.id})" style="padding: 2px 6px; font-size: 0.7rem; min-width: auto; height: auto; background: #ef4444;"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        // --- Three.js 3D Visualizer Logic ---
+        let scene, camera, renderer, controls;
+        let workplaneGrid, pathLine;
+        let robotModel = null;
+        let currentJointAngles = [0, 0, 0, 0, 0, 0];
+        let workspaceSphere;
+
+        function init3D() {
+            const container = document.getElementById('renderer-container');
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x090c14);
+
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.01, 10);
+            camera.position.set(0.8, 0.8, 0.8);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambientLight);
+
+            const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight1.position.set(1, 2, 1);
+            scene.add(dirLight1);
+
+            const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.3);
+            dirLight2.position.set(-1, -2, -1);
+            scene.add(dirLight2);
+
+            // Robot Base Coordinate Axes Indicator
+            const axesHelper = new THREE.AxesHelper(0.15);
+            scene.add(axesHelper);
+
+            // Create Maximum Workspace boundary representation (radius = 0.540m reach)
+            const workspaceGeo = new THREE.SphereGeometry(0.540, 32, 32);
+            const workspaceMat = new THREE.MeshBasicMaterial({
+                color: 0x00d2ff,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.03,
+                depthWrite: false
+            });
+            workspaceSphere = new THREE.Mesh(workspaceGeo, workspaceMat);
+            workspaceSphere.position.set(0, 0, 0.0); // Center at (0,0,0)
+            scene.add(workspaceSphere);
+
+            // Create 3D Workplane grid
+            const planeGeo = new THREE.PlaneGeometry(1.0, 1.0);
+            const planeMat = new THREE.MeshBasicMaterial({
+                color: 0x00d2ff,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.15,
+                side: THREE.DoubleSide
+            });
+            workplaneGrid = new THREE.Mesh(planeGeo, planeMat);
+            scene.add(workplaneGrid);
+
+            // Add coordinate outline axis on workplane
+            const planeBorderGeo = new THREE.EdgesGeometry(planeGeo);
+            const planeBorderMat = new THREE.LineBasicMaterial({ color: 0x00d2ff, linewidth: 2 });
+            const planeBorder = new THREE.LineSegments(planeBorderGeo, planeBorderMat);
+            workplaneGrid.add(planeBorder);
+
+            // Create 3D Path Line
+            const pathMat = new THREE.LineBasicMaterial({ color: 0xff5e00, linewidth: 3 });
+            pathLine = new THREE.Line(new THREE.BufferGeometry(), pathMat);
+            scene.add(pathLine);
+
+            update3DWorkplane();
+
+            // Load initial URDF model
+            loadRobotURDF(document.getElementById('robot-type').value);
+
+            // Add listener to reload URDF when user changes robot selection
+            document.getElementById('robot-type').addEventListener('change', (e) => {
+                loadRobotURDF(e.target.value);
+            });
+
+            window.addEventListener('resize', onWindowResize);
+            animate();
+        }
+
+        // Dynamically load KUKA Robot URDF and apply mesh files
+        function loadRobotURDF(type) {
+            if (robotModel) {
+                scene.remove(robotModel);
+            }
+
+            document.getElementById('preview-status').innerText = "Status: Loading URDF...";
+            document.getElementById('preview-status').style.color = "var(--accent-orange)";
+
+            const urdfUrl = `/urdf/${type}`;
+            const loader = new URDFLoader();
+
+            // Setup package redirection for STL mesh lookups
+            loader.packages = {
+                'kr3_viewer': '/package/kr3_viewer',
+                'kuka_kr3r540': '/package/kuka_kr3r540'
+            };
+
+            // Custom mesh loader for loading STL geometries in Three.js and wrapping them in Mesh objects
+            loader.loadMeshCb = (path, manager, onComplete) => {
+                const stlLoader = new THREE.STLLoader(manager);
+                stlLoader.load(
+                    path,
+                    (geometry) => {
+                        const material = new THREE.MeshStandardMaterial({
+                            color: type === 'C' ? 0x9ca3af : 0xff5e00,
+                            roughness: 0.4,
+                            metalness: 0.6
+                        });
+                        const mesh = new THREE.Mesh(geometry, material);
+                        onComplete(mesh);
+                    },
+                    undefined,
+                    (err) => {
+                        console.error('Error loading STL mesh:', err);
+                        onComplete(null, err);
+                    }
+                );
+            };
+
+            loader.load(urdfUrl, robot => {
+                robotModel = robot;
+
+                // Align URDF Z-up coordinate system with Three.js Y-up coordinate system
+                robotModel.rotation.x = -Math.PI / 2;
+
+                // Customize material on model meshes for a sleek dark aesthetics
+                robotModel.traverse(child => {
+                    if (child.isMesh) {
+                        child.material = new THREE.MeshStandardMaterial({
+                            color: type === 'C' ? 0x9ca3af : 0xff5e00,
+                            roughness: 0.4,
+                            metalness: 0.6
+                        });
+                    }
+                });
+
+                scene.add(robotModel);
+                updateRobotJoints(currentJointAngles);
+
+                document.getElementById('preview-status').innerText = "Status: Idle";
+                document.getElementById('preview-status').style.color = "var(--accent-blue)";
+            },
+                undefined,
+                (err) => {
+                    console.error("URDF Loading failed: ", err);
+                    document.getElementById('preview-status').innerText = "Status: Load Failed";
+                    document.getElementById('preview-status').style.color = "#ef4444";
+                });
+        }
+
+        // Set joint rotations in the Three.js model
+        function updateRobotJoints(q) {
+            currentJointAngles = q;
+            if (!robotModel) return;
+
+            const isRobotC = document.getElementById('robot-type').value === 'C';
+            const jointNames = isRobotC ?
+                ['link_1', 'link_2', 'link_3', 'link_4', 'link_5', 'link_6'] :
+                ['joint_a1', 'joint_a2', 'joint_a3', 'joint_a4', 'joint_a5', 'joint_a6'];
+
+            jointNames.forEach((name, idx) => {
+                if (robotModel.joints[name]) {
+                    robotModel.joints[name].setJointValue(q[idx]);
+                }
+            });
+
+            // Update manual joint sliders to match, but only if they are not actively being focused/dragged by the user
+            for (let i = 1; i <= 6; i++) {
+                const slider = document.getElementById(`joint-j${i}`);
+                if (slider && document.activeElement !== slider) {
+                    const deg = Math.round(q[i - 1] * 180 / Math.PI);
+                    slider.value = deg;
+                    const valEl = document.getElementById(`val-joint-j${i}`);
+                    if (valEl) valEl.innerText = deg + '°';
+                }
+            }
+
+            // Update real-time FK display in live telemetry card
+            updateTelemetryDisplay(q);
+        }
+
+        function update3DWorkplane() {
+            const rawX = parseFloat(document.getElementById('offset-x').value);
+            const rawY = parseFloat(document.getElementById('offset-y').value);
+            const rawZ = parseFloat(document.getElementById('offset-z').value);
+            // Swap Y and Z of the workplane
+            const px = rawX;
+            const py = rawZ;
+            const pz = rawY;
+            const roll = THREE.MathUtils.degToRad(parseFloat(document.getElementById('rotate-roll').value));
+            const pitch = THREE.MathUtils.degToRad(parseFloat(document.getElementById('rotate-pitch').value));
+            const yaw = THREE.MathUtils.degToRad(parseFloat(document.getElementById('rotate-yaw').value));
+
+            workplaneGrid.position.set(px, py, pz);
+            workplaneGrid.rotation.set(roll, pitch, yaw);
+
+            if (typeof redrawCanvas === 'function') {
+                redrawCanvas();
+            }
+            if (typeof updateCanvasCoordsDisplay === 'function') {
+                updateCanvasCoordsDisplay();
+            }
+        }
+
+        function update3DPath() {
+            if (points.length === 0) {
+                pathLine.geometry.dispose();
+                pathLine.geometry = new THREE.BufferGeometry();
+                return;
+            }
+
+            const rawX = parseFloat(document.getElementById('offset-x').value);
+            const rawY = parseFloat(document.getElementById('offset-y').value);
+            const rawZ = parseFloat(document.getElementById('offset-z').value);
+            // Swap Y and Z of the workplane
+            const px = rawX;
+            const py = rawZ;
+            const pz = rawY;
+            const roll = THREE.MathUtils.degToRad(parseFloat(document.getElementById('rotate-roll').value));
+            const pitch = THREE.MathUtils.degToRad(parseFloat(document.getElementById('rotate-pitch').value));
+            const yaw = THREE.MathUtils.degToRad(parseFloat(document.getElementById('rotate-yaw').value));
+
+            // Create transform matrix matching the workplane
+            const tempPlane = new THREE.Object3D();
+            tempPlane.position.set(px, py, pz);
+            tempPlane.rotation.set(roll, pitch, yaw);
+            tempPlane.updateMatrixWorld(true);
+
+            const pathVertices = [];
+            points.forEach(pt => {
+                const vertex = new THREE.Vector3(pt[0], pt[1], 0);
+                vertex.applyMatrix4(tempPlane.matrixWorld);
+                pathVertices.push(vertex);
+            });
+
+            pathLine.geometry.dispose();
+            pathLine.geometry = new THREE.BufferGeometry().setFromPoints(pathVertices);
+        }
+
+        let previewAnimationId = null;
+        function animateRobotPreview(jointTrajectory) {
+            if (previewAnimationId) {
+                cancelAnimationFrame(previewAnimationId);
+            }
+
+            let frame = 0;
+            const animateFrames = () => {
+                if (frame < jointTrajectory.length) {
+                    const q = jointTrajectory[frame];
+                    updateRobotJoints(q);
+                    frame++;
+                    previewAnimationId = requestAnimationFrame(animateFrames);
+                } else {
+                    document.getElementById('preview-status').innerText = "Status: Idle";
+                    document.getElementById('preview-status').style.color = "var(--accent-blue)";
+                }
+            };
+            animateFrames();
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('renderer-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Start Up Initialization
+        drawGrid();
+        init3D();
+
+        // Periodically poll current joint states from ROS 2 backend to keep Web 3D view synchronized
+        setInterval(() => {
+            // Only update from server if we are not currently running a local preview animation
+            if (document.getElementById('preview-status').innerText !== "Status: Simulating...") {
+                fetch('/api/joint_states')
+                    .then(res => res.json())
+                    .then(data => {
+                        updateRobotJoints(data.q);
+
+                        // Update Live Telemetry values
+                        if (data.q) {
+                            for (let i = 1; i <= 6; i++) {
+                                const deg = (data.q[i - 1] * 180 / Math.PI).toFixed(1);
+                                document.getElementById(`tele-j${i}`).innerText = deg + '°';
+                            }
+                        }
+                        if (data.tcp_pos) {
+                            const unmapped = unmapCoordinates(data.tcp_pos[0] * 1000, data.tcp_pos[1] * 1000, data.tcp_pos[2] * 1000);
+                            document.getElementById('tele-tcp-x').innerText = unmapped.x.toFixed(1);
+                            document.getElementById('tele-tcp-y').innerText = unmapped.y.toFixed(1);
+                            document.getElementById('tele-tcp-z').innerText = unmapped.z.toFixed(1);
+                        }
+                        if (data.tcp_euler) {
+                            document.getElementById('tele-tcp-r').innerText = data.tcp_euler[0].toFixed(1) + '°';
+                            document.getElementById('tele-tcp-p').innerText = data.tcp_euler[1].toFixed(1) + '°';
+                            document.getElementById('tele-tcp-yaw').innerText = data.tcp_euler[2].toFixed(1) + '°';
+                        }
+
+                        if (data.is_running) {
+                            document.getElementById('preview-status').innerText = "Status: Executing...";
+                            document.getElementById('preview-status').style.color = "var(--accent-green)";
+                        } else if (document.getElementById('preview-status').innerText === "Status: Executing..." ||
+                            document.getElementById('preview-status').innerText === "Status: Homing") {
+                            document.getElementById('preview-status').innerText = "Status: Idle";
+                            document.getElementById('preview-status').style.color = "var(--accent-blue)";
+                        }
+                    })
+                    .catch(err => { });
+            }
+        }, 50);
+    </script>
+</body>
+
+</html>
